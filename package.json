@@ -1,0 +1,18 @@
+{
+  "name": "go-employee-tracker",
+  "version": "1.0.0",
+  "description": "## Description Welcome to this backend Express.js command-line application that takes in user input to generate notes. The application will save and retrieve note data from a JSON file.",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "inquirer": "^8.2.4",
+    "pg": "^8.11.5"
+  }
+}
