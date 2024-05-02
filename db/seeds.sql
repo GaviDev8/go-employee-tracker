@@ -13,7 +13,7 @@ VALUES  ('Solution Architect', 180000, 1),
         ('Administrative Assistant', 120000, 3),
         ('Product Manager', 170000, 4),
         ('Account Manager', 100000, 1),
-        ('Sr. Software Engineer', 100000, 1),
+        ('Sr. Software Engineer', 100000, 2),
         ('Accountant', 130000, 5);
 
 INSERT INTO employee (first_name, last_name, role_id, manager_id)
