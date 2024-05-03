@@ -1,5 +1,6 @@
 const inquirer = require('inquirer');
 const { Pool } = require('pg');
+const { first } = require('rxjs');
 
 const pool = new Pool({
     host: 'localhost',
@@ -219,38 +220,270 @@ function removeEmployee() {
     });
 }
 
-
 function updateEmployeeRole() {
+    pool.query("SELECT * FROM employee", (err, roleResults) => {
+        if (err) {
+            console.error('Error fetching roles:', err);
+            return;
+        }
+        
+        const employeeChoices = roleResults.rows.map(({ id, first_name, last_name }) => ({
+            name: `${first_name} ${last_name}`,
+            value: id
+        }));
+        
+        inquirer.prompt([
+            {
+                type: "list",
+                name: "employeeId",
+                message: "Which employee would you like to update?",
+                choices: employeeChoices
+            }
+        ]).then(({ employeeId }) => {
+            const roleChoices = roleResults.rows.map(({ id, title }) => ({
+                name: title,
+                value: id
+            }));
 
+            inquirer.prompt([
+                {
+                    type: "list",
+                    name: "roleId",
+                    message: "Select the new role for the employee:",
+                    choices: roleChoices
+                }
+            ]).then(({ roleId }) => {
+                let sqlQuery = `UPDATE employee SET role_id = $1 WHERE id = $2;`;
+                pool.query(sqlQuery, [roleId, employeeId], (err, updateResult) => {
+                    if (err) {
+                        console.error('Error updating employee role:', err);
+                        return;
+                    }
+                    console.log("\nEmployee role updated");
+                    loadMainMenu();
+                });
+            });
+        });
+    });
 }
 
 function updateEmployeeManager() {
-    
+    pool.query("SELECT * FROM employee", (err, results) => {
+        if (err) {
+            console.error('Error fetching employees:', err);
+            return;
+        }
+        
+        const employeeChoices = results.rows.map(({ id, first_name, last_name }) => ({
+            name: `${first_name} ${last_name}`,
+            value: id
+        }));
+        
+        inquirer.prompt([
+            {
+                type: "list",
+                name: "employeeId",
+                message: "Which employee's manager would you like to change?",
+                choices: employeeChoices
+            }
+        ]).then(({ employeeId }) => {
+            pool.query("SELECT id, first_name, last_name FROM employee WHERE id != $1", [employeeId], (err, managerResults) => {
+                if (err) {
+                    console.error('Error fetching managers:', err);
+                    return;
+                }
+                
+                const managerChoices = managerResults.rows.map(({ id, first_name, last_name }) => ({
+                    name: `${first_name} ${last_name}`,
+                    value: id
+                }));
+                
+                inquirer.prompt([
+                    {
+                        type: 'list',
+                        name: 'managerId',
+                        message: 'Who is the employee\'s new manager?',
+                        choices: managerChoices
+                    }
+                ]).then(({ managerId }) => {
+                    let sqlQuery = `UPDATE employee SET manager_id = $1 WHERE id = $2`;
+                    pool.query(sqlQuery, [managerId, employeeId], (err, updateResults) => {
+                        if (err) {
+                            console.error('Error updating employee manager:', err);
+                            return;
+                        }
+                        console.log("\nEmployee manager updated");
+                        loadMainMenu();
+                    });
+                });
+            });
+        });
+    });
 }
 
 function addDepartment() {
-    
+    inquirer.prompt([
+        {
+            type: 'input',
+            name: 'departmentName',
+            message: 'Enter the name of the new department:'
+        }
+    ]).then(({ departmentName }) => {
+        pool.query('INSERT INTO department (name) VALUES ($1)', [departmentName], (err, results) => {
+            if (err) {
+                console.error('Error adding department:', err);
+                return;
+            }
+            console.log(`\nDepartment "${departmentName}" added successfully.`);
+            loadMainMenu();
+        });
+    });
 }
 
 function removeDepartment() {
-    
-}
-
-function viewUtilizeBudgetByDepartment() {
-    
+    pool.query('SELECT * FROM department', (err, results) => {
+        if (err) {
+            console.error('Error fetching departments:', err);
+            return;
+        }
+        
+        const departmentChoices = results.rows.map(({ id, name }) => ({
+            name: name,
+            value: id
+        }));
+        
+        inquirer.prompt([
+            {
+                type: 'list',
+                name: 'departmentId',
+                message: 'Select the department to remove:',
+                choices: departmentChoices
+            },
+            {
+                type: 'confirm',
+                name: 'confirm',
+                message: 'Are you sure you want to remove this department?',
+                default: false
+            }
+        ]).then(({ departmentId, confirm }) => {
+            if (confirm) {
+                pool.query('DELETE FROM department WHERE id = $1', [departmentId], (err, results) => {
+                    if (err) {
+                        console.error('Error removing department:', err);
+                        return;
+                    }
+                    console.log('\nDepartment removed successfully.');
+                    loadMainMenu();
+                });
+            } else {
+                console.log('\nDepartment removal cancelled.');
+                loadMainMenu();
+            }
+        });
+    });
 }
 
 function viewRole() {
-    
+    pool.query(`
+        SELECT role.title, role.id, department.name AS department_name, role.salary 
+        FROM role 
+        LEFT JOIN department ON role.department_id = department.id
+    `, (err, result) => {
+        if (err) {
+            console.error('Error fetching roles:', err);
+        } else {
+            console.log('LIST OF ROLES......');
+            console.table(result.rows);
+            loadMainMenu();
+        }
+    });
 }
 
 function addRole() {
-    
+    pool.query('SELECT * FROM department', (err, results) => {
+        if (err) {
+            console.error('Error fetching departments:', err);
+            return;
+        }
+        
+        const departmentChoices = results.rows.map(({ id, name }) => ({
+            name: name,
+            value: id
+        }));
+        
+        inquirer.prompt([
+            {
+                type: 'input',
+                name: 'title',
+                message: 'Enter the title of the new role:'
+            },
+            {
+                type: 'input',
+                name: 'salary',
+                message: 'Enter the salary for the new role:'
+            },
+            {
+                type: 'list',
+                name: 'departmentId',
+                message: 'Select the department for the new role:',
+                choices: departmentChoices
+            }
+        ]).then(({ title, salary, departmentId }) => {
+            pool.query('INSERT INTO role (title, salary, department_id) VALUES ($1, $2, $3)', [title, salary, departmentId], (err, results) => {
+                if (err) {
+                    console.error('Error adding role:', err);
+                    return;
+                }
+                console.log(`\nRole "${title}" added successfully.`);
+                loadMainMenu();
+            });
+        });
+    });
 }
 
 function removeRole() {
-    
+    pool.query('SELECT * FROM role', (err, results) => {
+        if (err) {
+            console.error('Error fetching roles:', err);
+            return;
+        }
+        
+        const roleChoices = results.rows.map(({ id, title }) => ({
+            name: title,
+            value: id
+        }));
+        
+        inquirer.prompt([
+            {
+                type: 'list',
+                name: 'roleId',
+                message: 'Select the role to remove:',
+                choices: roleChoices
+            },
+            {
+                type: 'confirm',
+                name: 'confirm',
+                message: 'Are you sure you want to remove this role?',
+                default: false
+            }
+        ]).then(({ roleId, confirm }) => {
+            if (confirm) {
+                pool.query('DELETE FROM role WHERE id = $1', [roleId], (err, results) => {
+                    if (err) {
+                        console.error('Error removing role:', err);
+                        return;
+                    }
+                    console.log('\nRole removed successfully.');
+                    loadMainMenu();
+                });
+            } else {
+                console.log('\nRole removal cancelled.');
+                loadMainMenu();
+            }
+        });
+    });
 }
+
 // main menu function/prompt
 function loadMainMenu() {
     inquirer.prompt([{
@@ -274,6 +507,27 @@ function loadMainMenu() {
                 name: "Remove employee",
                 value: "REMOVE_EMPLOYEE"
             },{
+                name: "Update employee role",
+                value: "UPDATE_EMPLOYEE_ROLE"
+            },{
+                name: "Update employees manager?",
+                value: "UPDATE_EMPLOYEE_MANAGER"
+            },{
+                name: "Add department",
+                value: "ADD_DEPARTMENT"
+            },{
+                name: "Remove department",
+                value: "REMOVE_DEPARTMENT"
+            },{
+                name: "View role",
+                value: "VIEW_ROLE"
+            },{
+                name: "Add role",
+                value: "ADD_ROLE"
+            },{
+                name: "Remove role",
+                value: "REMOVE_ROLE"
+            },{
                 name: "Quit",
                 value: "QUIT"
             }
@@ -294,6 +548,27 @@ function loadMainMenu() {
         else if (choice === "REMOVE_EMPLOYEE") {
             removeEmployee();
         } 
+        else if (choice === "UPDATE_EMPLOYEE_ROLE") {
+            updateEmployeeRole();
+        } 
+        else if (choice === "UPDATE_EMPLOYEE_MANAGER") {
+            updateEmployeeManager();
+        } 
+        else if (choice === "ADD_DEPARTMENT") {
+            addDepartment();
+        }
+        else if (choice === "REMOVE_DEPARTMENT") {
+            removeDepartment();
+        }
+        else if (choice === "VIEW_ROLE") {
+            viewRole();
+        }
+        else if (choice === "ADD_ROLE") {
+            addRole();
+        }
+        else if (choice === "REMOVE_ROLE") {
+            removeRole();
+        }
         else {
             quit();
         }
